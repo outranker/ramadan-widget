@@ -43,8 +43,8 @@ The Go backend lives in `api/` and is dockerized for deployment.
    ```
    API is at `http://localhost:8080` (e.g. `/healthz`, `/v1/ramadan-calendar?city=...&country=...`).
 
-### Raspberry Pi / ARM64
-The image builds for the host architecture. On a Raspberry Pi 4 (or other ARM64), run the same commands; the Dockerfile uses `TARGETARCH` so the binary is built for ARM64 and the exec format error is avoided. From an x86 host you can build for the Pi with:
+### Cross-platform builds
+The Dockerfile automatically detects the host architecture via BuildKit's `TARGETARCH`, so `docker compose up -d --build` produces a native binary on any platform (x86_64, ARM64/Raspberry Pi, etc.). To cross-compile from a different host:
 ```bash
 docker buildx build --platform linux/arm64 -t ramadan-widget-api:latest ./api
 ```
