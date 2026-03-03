@@ -1,0 +1,16 @@
+services:
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    image: ramadan-widget-api:latest
+    container_name: ramadan-calendar-api
+    ports:
+      - "8783:8080"
+    environment:
+      PORT: "8080"
+      # Required: set via .env or override when running
+      MUSLIMSALAT_API_KEY: ${MUSLIMSALAT_API_KEY}
+      # Optional: override upstream (default https://muslimsalat.com)
+      # MUSLIMSALAT_BASE_URL: https://muslimsalat.com
+    restart: unless-stopped
