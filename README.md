@@ -30,3 +30,21 @@ swift build
 
 ## Backend API
 The Go backend lives in `api/` and is dockerized for deployment.
+
+### Run with Docker Compose
+1. Copy the example env and set your MuslimSalat API key:
+   ```bash
+   cp .env.example .env
+   # Edit .env and set MUSLIMSALAT_API_KEY=your_key
+   ```
+2. Build and start:
+   ```bash
+   docker compose up -d --build
+   ```
+   API is at `http://localhost:8080` (e.g. `/healthz`, `/v1/ramadan-calendar?city=...&country=...`).
+
+### Raspberry Pi / ARM64
+The image builds for the host architecture. On a Raspberry Pi 4 (or other ARM64), run the same commands; the Dockerfile uses `TARGETARCH` so the binary is built for ARM64 and the exec format error is avoided. From an x86 host you can build for the Pi with:
+```bash
+docker buildx build --platform linux/arm64 -t ramadan-widget-api:latest ./api
+```

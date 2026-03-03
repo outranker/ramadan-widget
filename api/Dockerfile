@@ -7,7 +7,9 @@ COPY go.mod ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/ramadan-calendar-api ./main.go
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/ramadan-calendar-api ./main.go
 
 FROM gcr.io/distroless/base-debian12:nonroot
 WORKDIR /app
