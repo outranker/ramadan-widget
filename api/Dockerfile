@@ -10,9 +10,12 @@ COPY . .
 ARG TARGETOS TARGETARCH
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/ramadan-calendar-api ./main.go
 
+FROM busybox:1.37-musl AS busybox
+
 FROM gcr.io/distroless/base-debian12:nonroot
 WORKDIR /app
 
+COPY --from=busybox /bin/wget /usr/bin/wget
 COPY --from=build /out/ramadan-calendar-api /app/ramadan-calendar-api
 
 ENV PORT=8080

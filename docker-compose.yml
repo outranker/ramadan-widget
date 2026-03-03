@@ -13,4 +13,10 @@ services:
       MUSLIMSALAT_API_KEY: ${MUSLIMSALAT_API_KEY}
       # Optional: override upstream (default https://muslimsalat.com)
       # MUSLIMSALAT_BASE_URL: https://muslimsalat.com
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped

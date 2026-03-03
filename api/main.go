@@ -50,15 +50,26 @@ type errorResponse struct {
 }
 
 type muslimSalatResponse struct {
-	StatusCode        int              `json:"status_code"`
+	Title             string           `json:"title"`
+	Query             string           `json:"query"`
+	For               string           `json:"for"`
+	Method            json.Number      `json:"method"`
+	StatusValid       json.Number      `json:"status_valid"`
+	StatusCode        json.Number      `json:"status_code"`
 	StatusDescription string           `json:"status_description"`
+	StatusError       json.RawMessage  `json:"status_error"`
+	Country           string           `json:"country"`
 	Items             []muslimSalatDay `json:"items"`
 }
 
 type muslimSalatDay struct {
-	DateFor string `json:"date_for"`
-	Fajr    string `json:"fajr"`
-	Maghrib string `json:"maghrib"`
+	DateFor  string `json:"date_for"`
+	Fajr     string `json:"fajr"`
+	Shurooq  string `json:"shurooq"`
+	Dhuhr    string `json:"dhuhr"`
+	Asr      string `json:"asr"`
+	Maghrib  string `json:"maghrib"`
+	Isha     string `json:"isha"`
 }
 
 func main() {
@@ -156,8 +167,8 @@ func (s *server) handleRamadanCalendar(w http.ResponseWriter, r *http.Request) {
 	method := defaultMethod
 	if methodRaw := cleaned(r.URL.Query().Get("method")); methodRaw != "" {
 		parsedMethod, err := strconv.Atoi(methodRaw)
-		if err != nil || parsedMethod < 1 || parsedMethod > 23 {
-			writeJSONError(w, http.StatusBadRequest, "method must be between 1 and 23")
+		if err != nil || parsedMethod < 1 || parsedMethod > 7 {
+			writeJSONError(w, http.StatusBadRequest, "method must be between 1 and 7")
 			return
 		}
 		method = parsedMethod
@@ -186,19 +197,25 @@ func (s *server) fetchRamadanCalendar(
 	year int,
 	method int,
 ) ([]dayTimes, error) {
-	location := fmt.Sprintf("%s,%s", city, country)
+	// MuslimSalat URL: /{location}/yearly/{date}/{daylight}/{method}.json?key=...
+	// Date format: MM-DD-YYYY
+	location := fmt.Sprintf("%s, %s", city, country)
 	startDate := fmt.Sprintf("01-01-%04d", year)
+	pathSegment := fmt.Sprintf("/%s/yearly/%s/false/%d.json",
+		url.PathEscape(location), startDate, method)
 
-	upstreamPath := fmt.Sprintf(
-		"%s/%s/yearly/%s/false/%d.json?key=%s",
-		s.upstreamBase,
-		url.PathEscape(location),
-		startDate,
-		method,
-		url.QueryEscape(s.apiKey),
-	)
+	u, err := url.Parse(s.upstreamBase + pathSegment)
+	if err != nil {
+		return nil, fmt.Errorf("build upstream URL: %w", err)
+	}
+	q := u.Query()
+	q.Set("key", s.apiKey)
+	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, upstreamPath, nil)
+	log.Printf("upstream request: %s/%s/yearly/%s/false/%d.json",
+		s.upstreamBase, location, startDate, method)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("create upstream request: %w", err)
 	}
@@ -210,14 +227,23 @@ func (s *server) fetchRamadanCalendar(
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if err != nil {
+		return nil, fmt.Errorf("read upstream body: %w", err)
+	}
+
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return nil, fmt.Errorf("upstream returned %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("upstream returned HTTP %d: %s", resp.StatusCode, string(body))
 	}
 
 	var decoded muslimSalatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+	if err := json.Unmarshal(body, &decoded); err != nil {
 		return nil, fmt.Errorf("decode upstream payload: %w", err)
+	}
+
+	if valid, _ := decoded.StatusValid.Int64(); valid != 1 {
+		return nil, fmt.Errorf("upstream API error (status_code=%s): %s — %s",
+			decoded.StatusCode, decoded.StatusDescription, string(decoded.StatusError))
 	}
 
 	if len(decoded.Items) == 0 {
